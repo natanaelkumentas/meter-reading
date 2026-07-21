@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getReadings, ReadingRecord } from '../actions';
 import Link from 'next/link';
+import CalendarModal from '@/components/CalendarModal';
 
 export default function DisplayPage() {
   const [readings, setReadings] = useState<ReadingRecord[]>([]);
@@ -13,6 +14,7 @@ export default function DisplayPage() {
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [selectedRail, setSelectedRail] = useState<string>('all'); // all, val_plus_5, val_plus_15, val_minus_15
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // Fetch readings on mount
   useEffect(() => {
@@ -121,15 +123,26 @@ export default function DisplayPage() {
             <label htmlFor="filter-date" className="form-label" style={{ fontSize: '0.75rem' }}>
               Filter by Date
             </label>
-            <input
-              type="text"
-              id="filter-date"
-              className="input-control"
-              placeholder="YYYY/MM/DD or select..."
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-            />
-            <span className="helper-text" style={{ fontSize: '0.7rem' }}>Supports typing YYYY/MM/DD or YYYY-MM-DD</span>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="text"
+                id="filter-date"
+                className="input-control"
+                placeholder="YYYY/MM/DD or select..."
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+              />
+              <button
+                type="button"
+                className="btn"
+                style={{ width: 'auto', padding: '0 0.8rem', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border-color)', boxShadow: 'none' }}
+                onClick={() => setIsCalendarOpen(true)}
+                title="Open Calendar Picker"
+              >
+                📅
+              </button>
+            </div>
+            <span className="helper-text" style={{ fontSize: '0.7rem' }}>Supports typing YYYY/MM/DD or calendar modal</span>
           </div>
 
           {/* Power Supply Rail Column Filter */}
@@ -310,6 +323,12 @@ export default function DisplayPage() {
           100% { transform: rotate(360deg); }
         }
       `}</style>
+      <CalendarModal
+        isOpen={isCalendarOpen}
+        onClose={() => setIsCalendarOpen(false)}
+        selectedDate={selectedDate}
+        onSelectDate={(date) => setSelectedDate(date)}
+      />
     </div>
   );
 }

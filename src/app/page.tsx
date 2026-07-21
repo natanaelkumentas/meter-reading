@@ -3,12 +3,14 @@
 import React, { useState, useRef, useTransition } from 'react';
 import { addReading } from './actions';
 import Link from 'next/link';
+import CalendarModal from '@/components/CalendarModal';
 
 export default function InputForm() {
   const [dateStr, setDateStr] = useState('');
   const [val5, setVal5] = useState('');
   const [val15, setVal15] = useState('');
   const [valNeg15, setValNeg15] = useState('');
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   
   // Status feedback state
   const [status, setStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({
@@ -209,7 +211,7 @@ export default function InputForm() {
 
                 <button
                   type="button"
-                  onClick={handleCalendarClick}
+                  onClick={() => setIsCalendarOpen(true)}
                   className="btn"
                   style={{ width: 'auto', padding: '0 1rem', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border-color)', boxShadow: 'none' }}
                   title="Open Calendar Picker"
@@ -313,6 +315,15 @@ export default function InputForm() {
           </Link>
         </p>
       </div>
+      <CalendarModal
+        isOpen={isCalendarOpen}
+        onClose={() => setIsCalendarOpen(false)}
+        selectedDate={dateStr}
+        onSelectDate={(selected) => {
+          setDateStr(selected);
+          setStatus({ type: null, message: '' });
+        }}
+      />
     </div>
   );
 }
