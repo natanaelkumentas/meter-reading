@@ -644,3 +644,41 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   border-color: rgba(239, 68, 68, 0.4);
 }
 
+/* Year & Month Selection Grid Styling */
+.cal-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.cal-selection-btn {
+  padding: 0.9rem 0.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font-family: var(--font-title);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-snap);
+  text-align: center;
+}
+
+.cal-selection-btn:hover {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: var(--color-primary);
+  color: #ffffff;
+  transform: translateY(-2px);
+}
+
+.cal-selection-btn.active {
+  background: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  box-shadow: 0 0 14px rgba(99, 102, 241, 0.5);
+}
+
+
