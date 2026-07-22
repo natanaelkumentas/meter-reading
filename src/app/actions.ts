@@ -129,6 +129,31 @@ export async function addReading(data: ReadingInput) {
 }
 
 /**
+ * Deletes readings for a specific date and optional category.
+ */
+export async function deleteDailyReading(date: string, category?: 'TX1' | 'TX2') {
+  try {
+    let query = supabase.from('readings').delete().eq('date', date);
+    if (category) {
+      query = query.eq('category', category);
+    }
+    const { error } = await query;
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath('/');
+    revalidatePath('/display');
+    return { success: true };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || 'Failed to delete record.'
+    };
+  }
+}
+
+/**
  * Fetches all daily power supply readings.
  */
 export async function getReadings() {

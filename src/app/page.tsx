@@ -4,6 +4,7 @@ import React, { useState, useRef, useTransition } from 'react';
 import { saveDailyReadings } from './actions';
 import Link from 'next/link';
 import CalendarModal from '@/components/CalendarModal';
+import Toast from '@/components/Toast';
 
 export default function InputForm() {
   const [dateStr, setDateStr] = useState('');
@@ -80,17 +81,7 @@ export default function InputForm() {
     }
   };
 
-  // Trigger hidden calendar picker
-  const handleCalendarClick = () => {
-    if (hiddenDateInputRef.current) {
-      try {
-        hiddenDateInputRef.current.showPicker();
-      } catch (err) {
-        hiddenDateInputRef.current.click();
-      }
-    }
-  };
-
+  // Handle value selection from hidden calendar picker
   const handleHiddenDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawVal = e.target.value; // YYYY-MM-DD
     if (rawVal) {
@@ -109,7 +100,7 @@ export default function InputForm() {
     if (!isValidDate(dateStr)) {
       setStatus({
         type: 'error',
-        message: 'Please enter a valid date in the format YYYY/MM/DD or select from calendar.',
+        message: 'Please enter a valid date in format YYYY/MM/DD or select from calendar.',
       });
       return;
     }
@@ -171,9 +162,9 @@ export default function InputForm() {
       if (res.success) {
         setStatus({
           type: 'success',
-          message: 'Telemetry data for TX1 & TX2 successfully logged to Supabase!',
+          message: 'Telemetry data successfully logged to Supabase!',
         });
-        // Clear forms
+        // Clear all form inputs automatically
         setDateStr('');
         setTx1_v5('');
         setTx1_v15('');
@@ -205,18 +196,6 @@ export default function InputForm() {
         <div className="form-title">
           <span>📝</span> New Telemetry Entry
         </div>
-
-        {status.type === 'success' && (
-          <div className="alert alert-success">
-            <span style={{ fontSize: '1.2rem' }}>✓</span> {status.message}
-          </div>
-        )}
-
-        {status.type === 'error' && (
-          <div className="alert alert-error">
-            <span style={{ fontSize: '1.2rem' }}>⚠️</span> {status.message}
-          </div>
-        )}
 
         <form onSubmit={handleSubmit}>
           {/* Date Picker Section */}
@@ -299,8 +278,6 @@ export default function InputForm() {
                       className="input-control"
                       placeholder="e.g. 5.02"
                       step="0.01"
-                      min="0"
-                      max="10"
                       value={tx1_v5}
                       onChange={(e) => setTx1_v5(e.target.value)}
                       disabled={isPending}
@@ -318,8 +295,6 @@ export default function InputForm() {
                       className="input-control"
                       placeholder="e.g. 15.11"
                       step="0.01"
-                      min="0"
-                      max="30"
                       value={tx1_v15}
                       onChange={(e) => setTx1_v15(e.target.value)}
                       disabled={isPending}
@@ -337,8 +312,6 @@ export default function InputForm() {
                       className="input-control"
                       placeholder="e.g. -14.98"
                       step="0.01"
-                      min="-30"
-                      max="0"
                       value={tx1_vNeg15}
                       onChange={(e) => setTx1_vNeg15(e.target.value)}
                       disabled={isPending}
@@ -378,8 +351,6 @@ export default function InputForm() {
                       className="input-control"
                       placeholder="e.g. 4.98"
                       step="0.01"
-                      min="0"
-                      max="10"
                       value={tx2_v5}
                       onChange={(e) => setTx2_v5(e.target.value)}
                       disabled={isPending}
@@ -397,8 +368,6 @@ export default function InputForm() {
                       className="input-control"
                       placeholder="e.g. 15.05"
                       step="0.01"
-                      min="0"
-                      max="30"
                       value={tx2_v15}
                       onChange={(e) => setTx2_v15(e.target.value)}
                       disabled={isPending}
@@ -416,8 +385,6 @@ export default function InputForm() {
                       className="input-control"
                       placeholder="e.g. -15.02"
                       step="0.01"
-                      min="-30"
-                      max="0"
                       value={tx2_vNeg15}
                       onChange={(e) => setTx2_vNeg15(e.target.value)}
                       disabled={isPending}
@@ -456,6 +423,12 @@ export default function InputForm() {
           setDateStr(selected);
           setStatus({ type: null, message: '' });
         }}
+      />
+
+      <Toast
+        type={status.type}
+        message={status.message}
+        onClose={() => setStatus({ type: null, message: '' })}
       />
     </div>
   );

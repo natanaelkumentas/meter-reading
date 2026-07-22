@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { getReadings, ReadingRecord } from '../actions';
+import React, { useState, useEffect, useMemo, useTransition } from 'react';
+import { getReadings, saveDailyReadings, deleteDailyReading, ReadingRecord } from '../actions';
 import Link from 'next/link';
 import CalendarModal from '@/components/CalendarModal';
+import Toast from '@/components/Toast';
 
 interface GroupedDailyReading {
   date: string;
@@ -16,25 +17,48 @@ export default function DisplayPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Toast feedback state
+  const [toast, setToast] = useState<{ type: 'success' | 'error' | null; message: string }>({
+    type: null,
+    message: '',
+  });
+
+  const [isPending, startTransition] = useTransition();
+
   // Filter States
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all'); // all, TX1, TX2
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  // Fetch readings on mount
-  useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      setError('');
-      const res = await getReadings();
-      if (res.success) {
-        setReadings(res.data);
-      } else {
-        setError(res.error || 'Failed to load telemetry records.');
-      }
-      setLoading(false);
+  // EDIT MODAL STATE
+  const [editingRow, setEditingRow] = useState<GroupedDailyReading | null>(null);
+  const [editTx1_v5, setEditTx1_v5] = useState('');
+  const [editTx1_v15, setEditTx1_v15] = useState('');
+  const [editTx1_vNeg15, setEditTx1_vNeg15] = useState('');
+  const [editTx2_v5, setEditTx2_v5] = useState('');
+  const [editTx2_v15, setEditTx2_v15] = useState('');
+  const [editTx2_vNeg15, setEditTx2_vNeg15] = useState('');
+  const [hasTx1, setHasTx1] = useState(true);
+  const [hasTx2, setHasTx2] = useState(true);
+
+  // DELETE CONFIRM MODAL STATE
+  const [deletingDate, setDeletingDate] = useState<string | null>(null);
+
+  // Fetch readings on mount & re-fetch helper
+  const loadData = async () => {
+    setLoading(true);
+    setError('');
+    const res = await getReadings();
+    if (res.success) {
+      setReadings(res.data);
+    } else {
+      setError(res.error || 'Failed to load telemetry records.');
     }
+    setLoading(false);
+  };
+
+  useEffect(() => {
     loadData();
   }, []);
 
@@ -48,16 +72,13 @@ export default function DisplayPage() {
     return dateStr;
   };
 
-  // Extract unique years for Year Category dropdown
+  // Extract unique years for Year dropdown
   const uniqueYears = useMemo(() => {
-    const years = readings.map((r) => {
-      return r.date.split('-')[0];
-    });
+    const years = readings.map((r) => r.date.split('-')[0]);
     return Array.from(new Set(years)).sort((a, b) => b.localeCompare(a));
   }, [readings]);
 
-  // Compute tolerance classes
-  // Warning if values deviate by more than 5% from nominal
+  // Compute tolerance classes (Warning if values deviate by >5% from nominal)
   const getVoltageStatus = (value: number, nominal: number) => {
     const deviation = Math.abs((value - nominal) / nominal);
     if (deviation > 0.05) {
@@ -77,7 +98,7 @@ export default function DisplayPage() {
         if (rowYear !== selectedYear) return;
       }
 
-      // 2. Date Filter (Accepts YYYY-MM-DD or YYYY/MM/DD)
+      // 2. Date Filter
       if (selectedDate.trim() !== '') {
         const cleanedDate = selectedDate.replace(/\//g, '-');
         if (r.date !== cleanedDate) return;
@@ -99,6 +120,87 @@ export default function DisplayPage() {
 
     return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
   }, [readings, selectedYear, selectedDate, selectedCategory]);
+
+  // Open Edit Modal for a row
+  const handleOpenEdit = (row: GroupedDailyReading) => {
+    setEditingRow(row);
+    setHasTx1(!!row.tx1);
+    setHasTx2(!!row.tx2);
+
+    setEditTx1_v5(row.tx1 ? String(row.tx1.val_plus_5) : '');
+    setEditTx1_v15(row.tx1 ? String(row.tx1.val_plus_15) : '');
+    setEditTx1_vNeg15(row.tx1 ? String(row.tx1.val_minus_15) : '');
+
+    setEditTx2_v5(row.tx2 ? String(row.tx2.val_plus_5) : '');
+    setEditTx2_v15(row.tx2 ? String(row.tx2.val_plus_15) : '');
+    setEditTx2_vNeg15(row.tx2 ? String(row.tx2.val_minus_15) : '');
+  };
+
+  // Save Edit Changes (UPDATE)
+  const handleSaveEdit = async () => {
+    if (!editingRow) return;
+
+    if (!hasTx1 && !hasTx2) {
+      setToast({ type: 'error', message: 'Please select at least TX1 or TX2 to save values.' });
+      return;
+    }
+
+    let tx1Data: { val_plus_5: number; val_plus_15: number; val_minus_15: number } | undefined;
+    if (hasTx1) {
+      const v5 = parseFloat(editTx1_v5);
+      const v15 = parseFloat(editTx1_v15);
+      const vNeg15 = parseFloat(editTx1_vNeg15);
+      if (isNaN(v5) || isNaN(v15) || isNaN(vNeg15)) {
+        setToast({ type: 'error', message: 'All TX1 values must be valid numbers.' });
+        return;
+      }
+      tx1Data = { val_plus_5: v5, val_plus_15: v15, val_minus_15: vNeg15 };
+    }
+
+    let tx2Data: { val_plus_5: number; val_plus_15: number; val_minus_15: number } | undefined;
+    if (hasTx2) {
+      const v5 = parseFloat(editTx2_v5);
+      const v15 = parseFloat(editTx2_v15);
+      const vNeg15 = parseFloat(editTx2_vNeg15);
+      if (isNaN(v5) || isNaN(v15) || isNaN(vNeg15)) {
+        setToast({ type: 'error', message: 'All TX2 values must be valid numbers.' });
+        return;
+      }
+      tx2Data = { val_plus_5: v5, val_plus_15: v15, val_minus_15: vNeg15 };
+    }
+
+    startTransition(async () => {
+      const res = await saveDailyReadings({
+        date: editingRow.date,
+        tx1: tx1Data,
+        tx2: tx2Data,
+      });
+
+      if (res.success) {
+        setToast({ type: 'success', message: `Telemetry for ${formatDateToSlash(editingRow.date)} updated!` });
+        setEditingRow(null);
+        await loadData();
+      } else {
+        setToast({ type: 'error', message: res.error || 'Failed to update record.' });
+      }
+    });
+  };
+
+  // Confirm Delete (DELETE)
+  const handleConfirmDelete = async () => {
+    if (!deletingDate) return;
+
+    startTransition(async () => {
+      const res = await deleteDailyReading(deletingDate);
+      if (res.success) {
+        setToast({ type: 'success', message: `Telemetry for ${formatDateToSlash(deletingDate)} deleted.` });
+        setDeletingDate(null);
+        await loadData();
+      } else {
+        setToast({ type: 'error', message: res.error || 'Failed to delete record.' });
+      }
+    });
+  };
 
   // Helper to render supply voltages block
   const renderSupplyBlock = (record?: ReadingRecord) => {
@@ -148,13 +250,17 @@ export default function DisplayPage() {
 
   return (
     <div style={{ width: '100%' }}>
-      <div style={{ marginBottom: '2.5rem', textAlign: 'center' }}>
+      <div style={{ marginBottom: '2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <h1 className="gradient-text" style={{ fontSize: '2.5rem', fontWeight: 800 }}>
           Telemetry Logs & History
         </h1>
-        <p className="section-desc" style={{ margin: '0.5rem auto 0 auto' }}>
+        <p className="section-desc" style={{ margin: '0.5rem auto 1.5rem auto' }}>
           Daily power supply readings organized by date with side-by-side TX1 and TX2 columns.
         </p>
+        
+        <Link href="/" className="btn" style={{ width: 'auto', padding: '0.75rem 1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span>➕</span> New Telemetry Entry
+        </Link>
       </div>
 
       {/* Filter Control Bar */}
@@ -209,7 +315,7 @@ export default function DisplayPage() {
             </div>
           </div>
 
-          {/* Filter Selection */}
+          {/* Selection Filter */}
           <div className="form-group">
             <label htmlFor="filter-category" className="form-label" style={{ fontSize: '0.75rem' }}>
               Selection
@@ -270,7 +376,7 @@ export default function DisplayPage() {
             <table className="custom-table">
               <thead>
                 <tr>
-                  <th style={{ width: '130px' }}>Date</th>
+                  <th style={{ width: '120px' }}>Date</th>
 
                   {(selectedCategory === 'all' || selectedCategory === 'TX1') && (
                     <th style={{ textAlign: 'center', background: 'rgba(99, 102, 241, 0.08)', borderLeft: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)' }}>
@@ -284,12 +390,12 @@ export default function DisplayPage() {
                     </th>
                   )}
 
-                  <th style={{ width: '130px', textAlign: 'center' }}>Status</th>
+                  <th style={{ width: '100px', textAlign: 'center' }}>Status</th>
+                  <th style={{ width: '120px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {groupedReadings.map((row) => {
-                  // Evaluate status alerts for TX1 and TX2
                   let isAlert = false;
 
                   const checkDev = (rec?: ReadingRecord) => {
@@ -342,6 +448,30 @@ export default function DisplayPage() {
                           {isAlert ? 'Alert' : 'Normal'}
                         </span>
                       </td>
+
+                      {/* CRUD Actions Column (Edit / Delete) */}
+                      <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                        <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                          <button
+                            type="button"
+                            className="btn"
+                            style={{ width: 'auto', padding: '0.4rem 0.6rem', fontSize: '0.8rem', background: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.3)', boxShadow: 'none' }}
+                            onClick={() => handleOpenEdit(row)}
+                            title="Edit Record"
+                          >
+                            ✏️ Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn"
+                            style={{ width: 'auto', padding: '0.4rem 0.6rem', fontSize: '0.8rem', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: 'var(--color-error)', boxShadow: 'none' }}
+                            onClick={() => setDeletingDate(row.date)}
+                            title="Delete Record"
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -351,14 +481,128 @@ export default function DisplayPage() {
         </div>
       )}
 
-      <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-          Need to insert a new reading?{' '}
-          <Link href="/" style={{ color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 600 }}>
-            Go back to Input Form &larr;
-          </Link>
-        </p>
-      </div>
+      {/* EDIT MODAL POPUP */}
+      {editingRow && (
+        <div className="modal-backdrop" onClick={() => setEditingRow(null)}>
+          <div className="modal-content" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="calendar-header">
+              <div className="cal-title">
+                ✏️ Edit Telemetry: {formatDateToSlash(editingRow.date)}
+              </div>
+              <button type="button" className="cal-nav-btn" onClick={() => setEditingRow(null)}>
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '1rem', maxHeight: '70vh', overflowY: 'auto', paddingRight: '0.25rem' }}>
+              
+              {/* TX1 EDIT SECTION */}
+              <div style={{ background: 'rgba(99, 102, 241, 0.05)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: '14px', padding: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                  <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>📡 TX1</span>
+                  <label style={{ fontSize: '0.8rem', cursor: 'pointer', display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                    <input type="checkbox" checked={hasTx1} onChange={(e) => setHasTx1(e.target.checked)} /> Include TX1
+                  </label>
+                </div>
+                {hasTx1 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.7rem' }}>+5V</label>
+                      <input type="number" step="0.01" className="input-control" value={editTx1_v5} onChange={(e) => setEditTx1_v5(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.7rem' }}>+15V</label>
+                      <input type="number" step="0.01" className="input-control" value={editTx1_v15} onChange={(e) => setEditTx1_v15(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.7rem' }}>-15V</label>
+                      <input type="number" step="0.01" className="input-control" value={editTx1_vNeg15} onChange={(e) => setEditTx1_vNeg15(e.target.value)} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* TX2 EDIT SECTION */}
+              <div style={{ background: 'rgba(6, 182, 212, 0.05)', border: '1px solid rgba(6, 182, 212, 0.3)', borderRadius: '14px', padding: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                  <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>📡 TX2</span>
+                  <label style={{ fontSize: '0.8rem', cursor: 'pointer', display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                    <input type="checkbox" checked={hasTx2} onChange={(e) => setHasTx2(e.target.checked)} /> Include TX2
+                  </label>
+                </div>
+                {hasTx2 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.7rem' }}>+5V</label>
+                      <input type="number" step="0.01" className="input-control" value={editTx2_v5} onChange={(e) => setEditTx2_v5(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.7rem' }}>+15V</label>
+                      <input type="number" step="0.01" className="input-control" value={editTx2_v15} onChange={(e) => setEditTx2_v15(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ fontSize: '0.7rem' }}>-15V</label>
+                      <input type="number" step="0.01" className="input-control" value={editTx2_vNeg15} onChange={(e) => setEditTx2_vNeg15(e.target.value)} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
+              <button type="button" className="btn" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border-color)', boxShadow: 'none' }} onClick={() => setEditingRow(null)}>
+                Cancel
+              </button>
+              <button type="button" className="btn" onClick={handleSaveEdit} disabled={isPending}>
+                {isPending ? 'Updating...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRM MODAL */}
+      {deletingDate && (
+        <div className="modal-backdrop" onClick={() => setDeletingDate(null)}>
+          <div className="modal-content" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="calendar-header">
+              <div className="cal-title" style={{ color: 'var(--color-error)' }}>
+                ⚠️ Delete Telemetry Log
+              </div>
+              <button type="button" className="cal-nav-btn" onClick={() => setDeletingDate(null)}>
+                ✕
+              </button>
+            </div>
+
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', margin: '1rem 0 1.5rem 0', lineHeight: 1.5 }}>
+              Are you sure you want to permanently delete telemetry records for <strong>{formatDateToSlash(deletingDate)}</strong>? This action cannot be undone.
+            </p>
+
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button type="button" className="btn" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border-color)', boxShadow: 'none' }} onClick={() => setDeletingDate(null)}>
+                Cancel
+              </button>
+              <button type="button" className="btn" style={{ background: 'var(--color-error)' }} onClick={handleConfirmDelete} disabled={isPending}>
+                {isPending ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <CalendarModal
+        isOpen={isCalendarOpen}
+        onClose={() => setIsCalendarOpen(false)}
+        selectedDate={selectedDate}
+        onSelectDate={(date) => setSelectedDate(date)}
+      />
+
+      <Toast
+        type={toast.type}
+        message={toast.message}
+        onClose={() => setToast({ type: null, message: '' })}
+      />
 
       <style jsx global>{`
         @keyframes spin {
@@ -366,13 +610,6 @@ export default function DisplayPage() {
           100% { transform: rotate(360deg); }
         }
       `}</style>
-      
-      <CalendarModal
-        isOpen={isCalendarOpen}
-        onClose={() => setIsCalendarOpen(false)}
-        selectedDate={selectedDate}
-        onSelectDate={(date) => setSelectedDate(date)}
-      />
     </div>
   );
 }
