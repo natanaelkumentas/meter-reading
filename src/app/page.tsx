@@ -1,16 +1,27 @@
 'use client';
 
 import React, { useState, useRef, useTransition } from 'react';
-import { addReading } from './actions';
+import { saveDailyReadings } from './actions';
 import Link from 'next/link';
 import CalendarModal from '@/components/CalendarModal';
 
 export default function InputForm() {
   const [dateStr, setDateStr] = useState('');
-  const [val5, setVal5] = useState('');
-  const [val15, setVal15] = useState('');
-  const [valNeg15, setValNeg15] = useState('');
-  const [category, setCategory] = useState<'TX1' | 'TX2'>('TX1');
+  
+  // Enable checkboxes for TX1 and TX2
+  const [enableTx1, setEnableTx1] = useState(true);
+  const [enableTx2, setEnableTx2] = useState(true);
+
+  // TX1 Supply Inputs
+  const [tx1_v5, setTx1_v5] = useState('');
+  const [tx1_v15, setTx1_v15] = useState('');
+  const [tx1_vNeg15, setTx1_vNeg15] = useState('');
+
+  // TX2 Supply Inputs
+  const [tx2_v5, setTx2_v5] = useState('');
+  const [tx2_v15, setTx2_v15] = useState('');
+  const [tx2_vNeg15, setTx2_vNeg15] = useState('');
+
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   
   // Status feedback state
@@ -58,16 +69,12 @@ export default function InputForm() {
   // Handles text input date change
   const handleDateTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;
-    
-    // Auto-insert slashes for easier typing
     value = value.replace(/[^0-9/]/g, ''); // Allow only digits and slashes
     if (value.length === 4 && !value.includes('/')) {
       value = value + '/';
     } else if (value.length === 7 && value.split('/').length === 2) {
       value = value + '/';
     }
-    
-    // Cap length at 10 (yyyy/mm/dd)
     if (value.length <= 10) {
       setDateStr(value);
     }
@@ -79,13 +86,11 @@ export default function InputForm() {
       try {
         hiddenDateInputRef.current.showPicker();
       } catch (err) {
-        // Fallback for older browsers
         hiddenDateInputRef.current.click();
       }
     }
   };
 
-  // Handle value selection from hidden calendar picker
   const handleHiddenDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawVal = e.target.value; // YYYY-MM-DD
     if (rawVal) {
@@ -96,56 +101,86 @@ export default function InputForm() {
     }
   };
 
-  // Submit handler
+  // Submit handler for saving TX1 and TX2 together
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus({ type: null, message: '' });
 
-    // Validate date format
     if (!isValidDate(dateStr)) {
       setStatus({
         type: 'error',
-        message: 'Please enter a valid date in the format YYYY/MM/DD or use the calendar.',
+        message: 'Please enter a valid date in the format YYYY/MM/DD or select from calendar.',
       });
       return;
     }
 
-    // Convert values
-    const num5 = parseFloat(val5);
-    const num15 = parseFloat(val15);
-    const numNeg15 = parseFloat(valNeg15);
-
-    if (isNaN(num5) || isNaN(num15) || isNaN(numNeg15)) {
+    if (!enableTx1 && !enableTx2) {
       setStatus({
         type: 'error',
-        message: 'All voltages must be valid numbers.',
+        message: 'Please enable and fill in voltage values for at least TX1 or TX2.',
       });
       return;
     }
 
-    // Submitting through server action inside useTransition
-    startTransition(async () => {
-      // Reformat slash date to standard hyphen date for DB ingestion
-      const dbDate = dateStr.replace(/\//g, '-');
-      
-      const res = await addReading({
-        date: dbDate,
-        category: category,
+    let tx1Data: { val_plus_5: number; val_plus_15: number; val_minus_15: number } | undefined;
+    if (enableTx1) {
+      const num5 = parseFloat(tx1_v5);
+      const num15 = parseFloat(tx1_v15);
+      const numNeg15 = parseFloat(tx1_vNeg15);
+      if (isNaN(num5) || isNaN(num15) || isNaN(numNeg15)) {
+        setStatus({
+          type: 'error',
+          message: 'All TX1 voltage values must be valid numbers.',
+        });
+        return;
+      }
+      tx1Data = {
         val_plus_5: num5,
         val_plus_15: num15,
         val_minus_15: numNeg15,
+      };
+    }
+
+    let tx2Data: { val_plus_5: number; val_plus_15: number; val_minus_15: number } | undefined;
+    if (enableTx2) {
+      const num5 = parseFloat(tx2_v5);
+      const num15 = parseFloat(tx2_v15);
+      const numNeg15 = parseFloat(tx2_vNeg15);
+      if (isNaN(num5) || isNaN(num15) || isNaN(numNeg15)) {
+        setStatus({
+          type: 'error',
+          message: 'All TX2 voltage values must be valid numbers.',
+        });
+        return;
+      }
+      tx2Data = {
+        val_plus_5: num5,
+        val_plus_15: num15,
+        val_minus_15: numNeg15,
+      };
+    }
+
+    startTransition(async () => {
+      const dbDate = dateStr.replace(/\//g, '-');
+      const res = await saveDailyReadings({
+        date: dbDate,
+        tx1: tx1Data,
+        tx2: tx2Data,
       });
 
       if (res.success) {
         setStatus({
           type: 'success',
-          message: 'Data successfully recorded and logged to Supabase!',
+          message: 'Telemetry data for TX1 & TX2 successfully logged to Supabase!',
         });
         // Clear forms
         setDateStr('');
-        setVal5('');
-        setVal15('');
-        setValNeg15('');
+        setTx1_v5('');
+        setTx1_v15('');
+        setTx1_vNeg15('');
+        setTx2_v5('');
+        setTx2_v15('');
+        setTx2_vNeg15('');
       } else {
         setStatus({
           type: 'error',
@@ -156,13 +191,13 @@ export default function InputForm() {
   };
 
   return (
-    <div style={{ maxWidth: '640px', margin: '0 auto', width: '100%' }}>
+    <div style={{ maxWidth: '900px', margin: '0 auto', width: '100%' }}>
       <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
         <h1 className="gradient-text" style={{ fontSize: '2.5rem', fontWeight: 800 }}>
           Power Telemetry Input
         </h1>
         <p className="section-desc" style={{ margin: '0.5rem auto 0 auto' }}>
-          Record daily power supply voltages (+5 VOLT SUPPLY, +15 VOLT SUPPLY, -15 VOLT SUPPLY) to database.
+          Record daily power supply voltages for TX1 and TX2 together in a single entry.
         </p>
       </div>
 
@@ -184,168 +219,222 @@ export default function InputForm() {
         )}
 
         <form onSubmit={handleSubmit}>
-          <div className="form-grid">
-
-            {/* Category Selector (TX1 vs TX2) */}
-            <div className="form-group full-width">
-              <label className="form-label">
-                Category
-              </label>
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setCategory('TX1')}
-                  className="btn"
-                  style={{
-                    flex: 1,
-                    background: category === 'TX1' ? 'var(--color-primary)' : 'rgba(255,255,255,0.04)',
-                    border: category === 'TX1' ? '1px solid var(--color-primary)' : '1px solid var(--border-color)',
-                    color: '#ffffff',
-                    fontWeight: 700,
-                    boxShadow: category === 'TX1' ? '0 0 14px rgba(99, 102, 241, 0.4)' : 'none',
-                  }}
-                  disabled={isPending}
-                >
-                  TX1
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCategory('TX2')}
-                  className="btn"
-                  style={{
-                    flex: 1,
-                    background: category === 'TX2' ? 'var(--color-accent)' : 'rgba(255,255,255,0.04)',
-                    border: category === 'TX2' ? '1px solid var(--color-accent)' : '1px solid var(--border-color)',
-                    color: '#ffffff',
-                    fontWeight: 700,
-                    boxShadow: category === 'TX2' ? '0 0 14px rgba(6, 182, 212, 0.4)' : 'none',
-                  }}
-                  disabled={isPending}
-                >
-                  TX2
-                </button>
-              </div>
-            </div>
-            
-            {/* Date Picker Input */}
-            <div className="form-group full-width">
-              <label htmlFor="date" className="form-label">
-                Date Input
-              </label>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input
-                  type="text"
-                  id="date"
-                  className="input-control"
-                  placeholder="YYYY/MM/DD"
-                  value={dateStr}
-                  onChange={handleDateTextChange}
-                  disabled={isPending}
-                  required
-                />
-                
-                {/* Hidden Native Calendar Picker */}
-                <input
-                  type="date"
-                  ref={hiddenDateInputRef}
-                  onChange={handleHiddenDateChange}
-                  style={{ display: 'none' }}
-                />
-
-                <button
-                  type="button"
-                  onClick={() => setIsCalendarOpen(true)}
-                  className="btn"
-                  style={{ width: 'auto', padding: '0 1rem', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border-color)', boxShadow: 'none' }}
-                  title="Open Calendar Picker"
-                  disabled={isPending}
-                >
-                  📅
-                </button>
-
-                <button
-                  type="button"
-                  onClick={setToday}
-                  className="btn"
-                  style={{ width: 'auto', padding: '0 1rem', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border-color)', boxShadow: 'none', fontSize: '0.85rem' }}
-                  disabled={isPending}
-                >
-                  Today
-                </button>
-              </div>
-              <span className="helper-text">Format: YYYY/MM/DD or choose from calendar picker.</span>
-            </div>
-
-            {/* +5 VOLT SUPPLY Input */}
-            <div className="form-group">
-              <label htmlFor="val5" className="form-label">
-                🔋 +5 VOLT SUPPLY (V)
-              </label>
+          {/* Date Picker Section */}
+          <div className="form-group full-width" style={{ marginBottom: '2rem' }}>
+            <label htmlFor="date" className="form-label">
+              Date Input
+            </label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
               <input
-                type="number"
-                id="val5"
+                type="text"
+                id="date"
                 className="input-control"
-                placeholder="e.g. 5.02"
-                step="0.01"
-                min="0"
-                max="10"
-                value={val5}
-                onChange={(e) => setVal5(e.target.value)}
+                placeholder="YYYY/MM/DD"
+                value={dateStr}
+                onChange={handleDateTextChange}
                 disabled={isPending}
                 required
               />
-              <span className="helper-text">Nominal value: +5.00V</span>
-            </div>
-
-            {/* +15 VOLT SUPPLY Input */}
-            <div className="form-group">
-              <label htmlFor="val15" className="form-label">
-                🔋 +15 VOLT SUPPLY (V)
-              </label>
+              
               <input
-                type="number"
-                id="val15"
-                className="input-control"
-                placeholder="e.g. 15.11"
-                step="0.01"
-                min="0"
-                max="30"
-                value={val15}
-                onChange={(e) => setVal15(e.target.value)}
-                disabled={isPending}
-                required
+                type="date"
+                ref={hiddenDateInputRef}
+                onChange={handleHiddenDateChange}
+                style={{ display: 'none' }}
               />
-              <span className="helper-text">Nominal value: +15.00V</span>
-            </div>
 
-            {/* -15 VOLT SUPPLY Input */}
-            <div className="form-group full-width">
-              <label htmlFor="valNeg15" className="form-label">
-                🔋 -15 VOLT SUPPLY (V)
-              </label>
-              <input
-                type="number"
-                id="valNeg15"
-                className="input-control"
-                placeholder="e.g. -14.98"
-                step="0.01"
-                min="-30"
-                max="0"
-                value={valNeg15}
-                onChange={(e) => setValNeg15(e.target.value)}
+              <button
+                type="button"
+                onClick={() => setIsCalendarOpen(true)}
+                className="btn"
+                style={{ width: 'auto', padding: '0 1rem', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border-color)', boxShadow: 'none' }}
+                title="Open Calendar Picker"
                 disabled={isPending}
-                required
-              />
-              <span className="helper-text">Nominal value: -15.00V (negative value required)</span>
-            </div>
+              >
+                📅
+              </button>
 
-            {/* Submit Button */}
-            <div className="form-group full-width" style={{ marginTop: '1rem' }}>
-              <button type="submit" className="btn" disabled={isPending}>
-                {isPending ? 'Logging Telemetry...' : '⚡ Log Telemetry Data'}
+              <button
+                type="button"
+                onClick={setToday}
+                className="btn"
+                style={{ width: 'auto', padding: '0 1rem', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border-color)', boxShadow: 'none', fontSize: '0.85rem' }}
+                disabled={isPending}
+              >
+                Today
               </button>
             </div>
+            <span className="helper-text">Format: YYYY/MM/DD or select date from popup calendar.</span>
+          </div>
 
+          {/* Grid Layout for TX1 & TX2 Inputs */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+            
+            {/* TX1 SECTION CARD */}
+            <div style={{ background: 'rgba(99, 102, 241, 0.05)', border: `1px solid ${enableTx1 ? 'rgba(99, 102, 241, 0.3)' : 'var(--border-color)'}`, borderRadius: '16px', padding: '1.5rem', opacity: enableTx1 ? 1 : 0.6, transition: 'var(--transition-smooth)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  📡 TX1 Category
+                </h3>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={enableTx1}
+                    onChange={(e) => setEnableTx1(e.target.checked)}
+                    style={{ accentColor: 'var(--color-primary)', width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  Include TX1
+                </label>
+              </div>
+
+              {enableTx1 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label htmlFor="tx1_v5" className="form-label" style={{ fontSize: '0.8rem' }}>
+                      🔋 +5 VOLT SUPPLY (V)
+                    </label>
+                    <input
+                      type="number"
+                      id="tx1_v5"
+                      className="input-control"
+                      placeholder="e.g. 5.02"
+                      step="0.01"
+                      min="0"
+                      max="10"
+                      value={tx1_v5}
+                      onChange={(e) => setTx1_v5(e.target.value)}
+                      disabled={isPending}
+                      required={enableTx1}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="tx1_v15" className="form-label" style={{ fontSize: '0.8rem' }}>
+                      🔋 +15 VOLT SUPPLY (V)
+                    </label>
+                    <input
+                      type="number"
+                      id="tx1_v15"
+                      className="input-control"
+                      placeholder="e.g. 15.11"
+                      step="0.01"
+                      min="0"
+                      max="30"
+                      value={tx1_v15}
+                      onChange={(e) => setTx1_v15(e.target.value)}
+                      disabled={isPending}
+                      required={enableTx1}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="tx1_vNeg15" className="form-label" style={{ fontSize: '0.8rem' }}>
+                      🔋 -15 VOLT SUPPLY (V)
+                    </label>
+                    <input
+                      type="number"
+                      id="tx1_vNeg15"
+                      className="input-control"
+                      placeholder="e.g. -14.98"
+                      step="0.01"
+                      min="-30"
+                      max="0"
+                      value={tx1_vNeg15}
+                      onChange={(e) => setTx1_vNeg15(e.target.value)}
+                      disabled={isPending}
+                      required={enableTx1}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* TX2 SECTION CARD */}
+            <div style={{ background: 'rgba(6, 182, 212, 0.05)', border: `1px solid ${enableTx2 ? 'rgba(6, 182, 212, 0.3)' : 'var(--border-color)'}`, borderRadius: '16px', padding: '1.5rem', opacity: enableTx2 ? 1 : 0.6, transition: 'var(--transition-smooth)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  📡 TX2 Category
+                </h3>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={enableTx2}
+                    onChange={(e) => setEnableTx2(e.target.checked)}
+                    style={{ accentColor: 'var(--color-accent)', width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  Include TX2
+                </label>
+              </div>
+
+              {enableTx2 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label htmlFor="tx2_v5" className="form-label" style={{ fontSize: '0.8rem' }}>
+                      🔋 +5 VOLT SUPPLY (V)
+                    </label>
+                    <input
+                      type="number"
+                      id="tx2_v5"
+                      className="input-control"
+                      placeholder="e.g. 4.98"
+                      step="0.01"
+                      min="0"
+                      max="10"
+                      value={tx2_v5}
+                      onChange={(e) => setTx2_v5(e.target.value)}
+                      disabled={isPending}
+                      required={enableTx2}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="tx2_v15" className="form-label" style={{ fontSize: '0.8rem' }}>
+                      🔋 +15 VOLT SUPPLY (V)
+                    </label>
+                    <input
+                      type="number"
+                      id="tx2_v15"
+                      className="input-control"
+                      placeholder="e.g. 15.05"
+                      step="0.01"
+                      min="0"
+                      max="30"
+                      value={tx2_v15}
+                      onChange={(e) => setTx2_v15(e.target.value)}
+                      disabled={isPending}
+                      required={enableTx2}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="tx2_vNeg15" className="form-label" style={{ fontSize: '0.8rem' }}>
+                      🔋 -15 VOLT SUPPLY (V)
+                    </label>
+                    <input
+                      type="number"
+                      id="tx2_vNeg15"
+                      className="input-control"
+                      placeholder="e.g. -15.02"
+                      step="0.01"
+                      min="-30"
+                      max="0"
+                      value={tx2_vNeg15}
+                      onChange={(e) => setTx2_vNeg15(e.target.value)}
+                      disabled={isPending}
+                      required={enableTx2}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+
+          {/* Save Button */}
+          <div className="form-group full-width">
+            <button type="submit" className="btn" disabled={isPending} style={{ padding: '1.1rem', fontSize: '1.05rem' }}>
+              {isPending ? 'Logging Telemetry Data...' : '⚡ Save Telemetry Data (TX1 & TX2)'}
+            </button>
           </div>
         </form>
       </div>
@@ -358,6 +447,7 @@ export default function InputForm() {
           </Link>
         </p>
       </div>
+
       <CalendarModal
         isOpen={isCalendarOpen}
         onClose={() => setIsCalendarOpen(false)}
