@@ -5,6 +5,12 @@ import { getReadings, ReadingRecord } from '../actions';
 import Link from 'next/link';
 import CalendarModal from '@/components/CalendarModal';
 
+interface GroupedDailyReading {
+  date: string;
+  tx1?: ReadingRecord;
+  tx2?: ReadingRecord;
+}
+
 export default function DisplayPage() {
   const [readings, setReadings] = useState<ReadingRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -13,7 +19,7 @@ export default function DisplayPage() {
   // Filter States
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>('');
-  const [selectedRail, setSelectedRail] = useState<string>('all'); // all, val_plus_5, val_plus_15, val_minus_15
+  const [selectedCategory, setSelectedCategory] = useState<string>('all'); // all, TX1, TX2
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // Fetch readings on mount
@@ -42,12 +48,10 @@ export default function DisplayPage() {
     return dateStr;
   };
 
-  // Extract unique years for the Year Category dropdown
+  // Extract unique years for Year Category dropdown
   const uniqueYears = useMemo(() => {
     const years = readings.map((r) => {
-      // date is usually YYYY-MM-DD
-      const year = r.date.split('-')[0];
-      return year;
+      return r.date.split('-')[0];
     });
     return Array.from(new Set(years)).sort((a, b) => b.localeCompare(a));
   }, [readings]);
@@ -57,29 +61,90 @@ export default function DisplayPage() {
   const getVoltageStatus = (value: number, nominal: number) => {
     const deviation = Math.abs((value - nominal) / nominal);
     if (deviation > 0.05) {
-      return { class: 'voltage-val minus15', label: '⚠️ Alert (Outside 5%)' }; // reuse rose/red style
+      return { class: 'voltage-val minus15', label: 'Alert' };
     }
     return { class: '', label: 'OK' };
   };
 
-  // Filter data based on selections
-  const filteredReadings = useMemo(() => {
-    return readings.filter((r) => {
+  // Group readings per day for dual-column (TX1 & TX2) display
+  const groupedReadings = useMemo(() => {
+    const map = new Map<string, GroupedDailyReading>();
+
+    readings.forEach((r) => {
       // 1. Year Filter
       if (selectedYear !== 'all') {
         const rowYear = r.date.split('-')[0];
-        if (rowYear !== selectedYear) return false;
+        if (rowYear !== selectedYear) return;
       }
 
       // 2. Date Filter (Accepts YYYY-MM-DD or YYYY/MM/DD)
       if (selectedDate.trim() !== '') {
-        const cleanedDate = selectedDate.replace(/\//g, '-'); // normalize to YYYY-MM-DD
-        if (r.date !== cleanedDate) return false;
+        const cleanedDate = selectedDate.replace(/\//g, '-');
+        if (r.date !== cleanedDate) return;
       }
 
-      return true;
+      // 3. Category Filter
+      if (selectedCategory !== 'all') {
+        if (r.category !== selectedCategory) return;
+      }
+
+      const existing = map.get(r.date) || { date: r.date };
+      if (r.category === 'TX2') {
+        existing.tx2 = r;
+      } else {
+        existing.tx1 = r;
+      }
+      map.set(r.date, existing);
     });
-  }, [readings, selectedYear, selectedDate]);
+
+    return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
+  }, [readings, selectedYear, selectedDate, selectedCategory]);
+
+  // Helper to render supply voltages block
+  const renderSupplyBlock = (record?: ReadingRecord) => {
+    if (!record) {
+      return (
+        <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic', padding: '0.5rem 0' }}>
+          — No Entry —
+        </div>
+      );
+    }
+
+    const s5 = getVoltageStatus(record.val_plus_5, 5.0);
+    const s15 = getVoltageStatus(record.val_plus_15, 15.0);
+    const sNeg15 = getVoltageStatus(record.val_minus_15, -15.0);
+
+    return (
+      <div style={{ display: 'flex', gap: '1rem', justifyContent: 'space-around', alignItems: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            +5V
+          </div>
+          <div className={`voltage-val plus5 ${s5.class}`} style={{ fontSize: '0.95rem' }}>
+            {record.val_plus_5.toFixed(2)} V
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            +15V
+          </div>
+          <div className={`voltage-val plus15 ${s15.class}`} style={{ fontSize: '0.95rem' }}>
+            {record.val_plus_15.toFixed(2)} V
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            -15V
+          </div>
+          <div className={`voltage-val minus15 ${sNeg15.class}`} style={{ fontSize: '0.95rem' }}>
+            {record.val_minus_15.toFixed(2)} V
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={{ width: '100%' }}>
@@ -88,20 +153,20 @@ export default function DisplayPage() {
           Telemetry Logs & History
         </h1>
         <p className="section-desc" style={{ margin: '0.5rem auto 0 auto' }}>
-          Inspect daily power supply rail logs. Filter readings by date, rail type, and year-based category.
+          Daily power supply readings organized by date with side-by-side TX1 and TX2 category columns.
         </p>
       </div>
 
-      {/* Filter and Control Bar */}
+      {/* Filter Control Bar */}
       <div className="card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
         <h3 style={{ fontSize: '1rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1rem', fontWeight: 600 }}>
           🔍 Filter Records
         </h3>
         <div className="filter-bar">
-          {/* Year Category Filter */}
+          {/* Year Filter */}
           <div className="form-group">
             <label htmlFor="filter-year" className="form-label" style={{ fontSize: '0.75rem' }}>
-              Category (Year)
+              Category per Year
             </label>
             <select
               id="filter-year"
@@ -128,7 +193,7 @@ export default function DisplayPage() {
                 type="text"
                 id="filter-date"
                 className="input-control"
-                placeholder="YYYY/MM/DD or select..."
+                placeholder="YYYY/MM/DD..."
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
               />
@@ -142,30 +207,28 @@ export default function DisplayPage() {
                 📅
               </button>
             </div>
-            <span className="helper-text" style={{ fontSize: '0.7rem' }}>Supports typing YYYY/MM/DD or calendar modal</span>
           </div>
 
-          {/* Power Supply Rail Column Filter */}
+          {/* Transmitter / Category Filter */}
           <div className="form-group">
-            <label htmlFor="filter-rail" className="form-label" style={{ fontSize: '0.75rem' }}>
-              Power Rail Selection
+            <label htmlFor="filter-category" className="form-label" style={{ fontSize: '0.75rem' }}>
+              Transmitter Category
             </label>
             <select
-              id="filter-rail"
+              id="filter-category"
               className="input-control"
-              value={selectedRail}
-              onChange={(e) => setSelectedRail(e.target.value)}
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
             >
-              <option value="all">Display All Supplies</option>
-              <option value="val_plus_5">+5 VOLT SUPPLY Only</option>
-              <option value="val_plus_15">+15 VOLT SUPPLY Only</option>
-              <option value="val_minus_15">-15 VOLT SUPPLY Only</option>
+              <option value="all">Display Both TX1 & TX2</option>
+              <option value="TX1">TX1 Category Only</option>
+              <option value="TX2">TX2 Category Only</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* Main Content Area */}
+      {/* Main Table Display */}
       {loading ? (
         <div className="card" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
           <div style={{ fontSize: '2rem', marginBottom: '1rem', animation: 'spin 1.5s linear infinite' }}>🔄</div>
@@ -175,7 +238,7 @@ export default function DisplayPage() {
         <div className="alert alert-error">
           <span>⚠️</span> {error}
         </div>
-      ) : filteredReadings.length === 0 ? (
+      ) : groupedReadings.length === 0 ? (
         <div className="card">
           <div className="empty-state">
             <span className="empty-state-icon">📡</span>
@@ -190,7 +253,7 @@ export default function DisplayPage() {
                 onClick={() => {
                   setSelectedYear('all');
                   setSelectedDate('');
-                  setSelectedRail('all');
+                  setSelectedCategory('all');
                 }}
               >
                 Clear Filters
@@ -207,87 +270,67 @@ export default function DisplayPage() {
             <table className="custom-table">
               <thead>
                 <tr>
-                  <th>Date</th>
-                  
-                  {/* Conditionally display headers based on selectedRail */}
-                  {(selectedRail === 'all' || selectedRail === 'val_plus_5') && (
-                    <th>+5 VOLT SUPPLY</th>
+                  <th style={{ width: '130px' }}>Date</th>
+
+                  {(selectedCategory === 'all' || selectedCategory === 'TX1') && (
+                    <th style={{ textAlign: 'center', background: 'rgba(99, 102, 241, 0.08)', borderLeft: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)' }}>
+                      📡 TX1 CATEGORY SUPPLY DATA
+                    </th>
                   )}
-                  {(selectedRail === 'all' || selectedRail === 'val_plus_15') && (
-                    <th>+15 VOLT SUPPLY</th>
+
+                  {(selectedCategory === 'all' || selectedCategory === 'TX2') && (
+                    <th style={{ textAlign: 'center', background: 'rgba(6, 182, 212, 0.08)', borderRight: '1px solid var(--border-color)' }}>
+                      📡 TX2 CATEGORY SUPPLY DATA
+                    </th>
                   )}
-                  {(selectedRail === 'all' || selectedRail === 'val_minus_15') && (
-                    <th>-15 VOLT SUPPLY</th>
-                  )}
-                  
-                  <th>Status</th>
+
+                  <th style={{ width: '130px', textAlign: 'center' }}>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredReadings.map((row) => {
-                  const status5 = getVoltageStatus(row.val_plus_5, 5.0);
-                  const status15 = getVoltageStatus(row.val_plus_15, 15.0);
-                  const statusNeg15 = getVoltageStatus(row.val_minus_15, -15.0);
-
-                  // Row status is critical/warning if any active rail is deviating
-                  let rowStatusText = 'Normal';
+                {groupedReadings.map((row) => {
+                  // Evaluate status alerts for TX1 and TX2
                   let isAlert = false;
-                  
-                  if (selectedRail === 'all') {
-                    if (status5.class || status15.class || statusNeg15.class) {
-                      rowStatusText = 'Deviation Alert';
-                      isAlert = true;
-                    }
-                  } else if (selectedRail === 'val_plus_5' && status5.class) {
-                    rowStatusText = 'Deviation Alert';
+
+                  const checkDev = (rec?: ReadingRecord) => {
+                    if (!rec) return false;
+                    const dev5 = Math.abs((rec.val_plus_5 - 5.0) / 5.0);
+                    const dev15 = Math.abs((rec.val_plus_15 - 15.0) / 15.0);
+                    const devNeg15 = Math.abs((rec.val_minus_15 - -15.0) / -15.0);
+                    return dev5 > 0.05 || dev15 > 0.05 || devNeg15 > 0.05;
+                  };
+
+                  if (selectedCategory === 'all') {
+                    if (checkDev(row.tx1) || checkDev(row.tx2)) isAlert = true;
+                  } else if (selectedCategory === 'TX1' && checkDev(row.tx1)) {
                     isAlert = true;
-                  } else if (selectedRail === 'val_plus_15' && status15.class) {
-                    rowStatusText = 'Deviation Alert';
-                    isAlert = true;
-                  } else if (selectedRail === 'val_minus_15' && statusNeg15.class) {
-                    rowStatusText = 'Deviation Alert';
+                  } else if (selectedCategory === 'TX2' && checkDev(row.tx2)) {
                     isAlert = true;
                   }
 
                   return (
-                    <tr key={row.id}>
-                      {/* Date */}
-                      <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                    <tr key={row.date}>
+                      {/* Date Column */}
+                      <td style={{ fontWeight: 600, color: 'var(--text-primary)', verticalAlign: 'middle' }}>
                         {formatDateToSlash(row.date)}
                       </td>
 
-                      {/* +5 VOLT SUPPLY */}
-                      {(selectedRail === 'all' || selectedRail === 'val_plus_5') && (
-                        <td>
-                          <div className={`voltage-val plus5 ${status5.class}`}>
-                            {row.val_plus_5.toFixed(2)} V
-                          </div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Nominal: 5.00V</div>
+                      {/* TX1 Supply Column */}
+                      {(selectedCategory === 'all' || selectedCategory === 'TX1') && (
+                        <td style={{ borderLeft: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)', verticalAlign: 'middle' }}>
+                          {renderSupplyBlock(row.tx1)}
                         </td>
                       )}
 
-                      {/* +15 VOLT SUPPLY */}
-                      {(selectedRail === 'all' || selectedRail === 'val_plus_15') && (
-                        <td>
-                          <div className={`voltage-val plus15 ${status15.class}`}>
-                            {row.val_plus_15.toFixed(2)} V
-                          </div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Nominal: 15.00V</div>
+                      {/* TX2 Supply Column */}
+                      {(selectedCategory === 'all' || selectedCategory === 'TX2') && (
+                        <td style={{ borderRight: '1px solid var(--border-color)', verticalAlign: 'middle' }}>
+                          {renderSupplyBlock(row.tx2)}
                         </td>
                       )}
 
-                      {/* -15 VOLT SUPPLY */}
-                      {(selectedRail === 'all' || selectedRail === 'val_minus_15') && (
-                        <td>
-                          <div className={`voltage-val minus15 ${statusNeg15.class}`}>
-                            {row.val_minus_15.toFixed(2)} V
-                          </div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Nominal: -15.00V</div>
-                        </td>
-                      )}
-
-                      {/* Status Check badge */}
-                      <td>
+                      {/* Overall Daily Status */}
+                      <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
                         <span
                           className="voltage-badge"
                           style={{
@@ -296,7 +339,7 @@ export default function DisplayPage() {
                             border: `1px solid ${isAlert ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
                           }}
                         >
-                          {rowStatusText}
+                          {isAlert ? 'Alert' : 'Normal'}
                         </span>
                       </td>
                     </tr>
@@ -323,6 +366,7 @@ export default function DisplayPage() {
           100% { transform: rotate(360deg); }
         }
       `}</style>
+      
       <CalendarModal
         isOpen={isCalendarOpen}
         onClose={() => setIsCalendarOpen(false)}

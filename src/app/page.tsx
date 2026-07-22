@@ -10,6 +10,7 @@ export default function InputForm() {
   const [val5, setVal5] = useState('');
   const [val15, setVal15] = useState('');
   const [valNeg15, setValNeg15] = useState('');
+  const [category, setCategory] = useState<'TX1' | 'TX2'>('TX1');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   
   // Status feedback state
@@ -129,6 +130,7 @@ export default function InputForm() {
       
       const res = await addReading({
         date: dbDate,
+        category: category,
         val_plus_5: num5,
         val_plus_15: num15,
         val_minus_15: numNeg15,
@@ -183,6 +185,47 @@ export default function InputForm() {
 
         <form onSubmit={handleSubmit}>
           <div className="form-grid">
+
+            {/* Category Selector (TX1 vs TX2) */}
+            <div className="form-group full-width">
+              <label className="form-label">
+                Select Category / Transmitter
+              </label>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setCategory('TX1')}
+                  className="btn"
+                  style={{
+                    flex: 1,
+                    background: category === 'TX1' ? 'var(--color-primary)' : 'rgba(255,255,255,0.04)',
+                    border: category === 'TX1' ? '1px solid var(--color-primary)' : '1px solid var(--border-color)',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    boxShadow: category === 'TX1' ? '0 0 14px rgba(99, 102, 241, 0.4)' : 'none',
+                  }}
+                  disabled={isPending}
+                >
+                  📡 TX1 Category
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCategory('TX2')}
+                  className="btn"
+                  style={{
+                    flex: 1,
+                    background: category === 'TX2' ? 'var(--color-accent)' : 'rgba(255,255,255,0.04)',
+                    border: category === 'TX2' ? '1px solid var(--color-accent)' : '1px solid var(--border-color)',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    boxShadow: category === 'TX2' ? '0 0 14px rgba(6, 182, 212, 0.4)' : 'none',
+                  }}
+                  disabled={isPending}
+                >
+                  📡 TX2 Category
+                </button>
+              </div>
+            </div>
             
             {/* Date Picker Input */}
             <div className="form-group full-width">
