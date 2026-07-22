@@ -181,8 +181,52 @@ export default function InputForm() {
     });
   };
 
-  // Ctrl + Arrow Direction Key Navigation Handler
+  // Keyboard Navigation & Shift Modifier Handler
   const handleFormKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
+    // 1. Shift + ArrowUp / ArrowDown: Increment / Decrement value by 1 (or 1 day for date)
+    if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      const activeElement = document.activeElement as HTMLInputElement | null;
+      if (!activeElement || !activeElement.id) return;
+
+      const id = activeElement.id;
+      const delta = e.key === 'ArrowUp' ? 1 : -1;
+
+      // Handle Date Field (+1 day / -1 day)
+      if (id === 'date') {
+        e.preventDefault();
+        let currentDate = new Date();
+        if (isValidDate(dateStr)) {
+          const parts = dateStr.split('/');
+          currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        }
+        currentDate.setDate(currentDate.getDate() + delta);
+        setDateStr(formatDateToSlash(currentDate));
+        return;
+      }
+
+      // Handle Number Voltage Fields (+1 / -1)
+      const setters: Record<string, [string, React.Dispatch<React.SetStateAction<string>>]> = {
+        tx1_v5: [tx1_v5, setTx1_v5],
+        tx1_v15: [tx1_v15, setTx1_v15],
+        tx1_vNeg15: [tx1_vNeg15, setTx1_vNeg15],
+        tx2_v5: [tx2_v5, setTx2_v5],
+        tx2_v15: [tx2_v15, setTx2_v15],
+        tx2_vNeg15: [tx2_vNeg15, setTx2_vNeg15],
+      };
+
+      if (id in setters) {
+        e.preventDefault();
+        const [currentVal, setter] = setters[id];
+        const num = parseFloat(currentVal);
+        const baseVal = !isNaN(num) ? num : 0;
+        const newVal = baseVal + delta;
+        const decimals = currentVal.includes('.') ? currentVal.split('.')[1].length : 2;
+        setter(newVal.toFixed(Math.max(2, decimals)));
+        return;
+      }
+    }
+
+    // 2. Ctrl + Arrow Keys: Navigate between fields
     if (!e.ctrlKey) return;
     const key = e.key;
     if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) return;
@@ -274,8 +318,8 @@ export default function InputForm() {
           <div className="form-title" style={{ marginBottom: 0 }}>
             <span>📝</span> New Telemetry Entry
           </div>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '0.3rem 0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-            💡 Ctrl + ↑ / ↓ / ← / → to navigate fields
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '0.35rem 0.7rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+            💡 Ctrl + ↑/↓/←/→: navigate | Shift + ↑/↓: +/- 1
           </span>
         </div>
 
