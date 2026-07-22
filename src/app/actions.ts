@@ -162,20 +162,47 @@ export async function deleteDailyReading(date: string, category?: 'TX1' | 'TX2')
 }
 
 /**
- * Fetches all daily power supply readings.
+ * Fetches all daily power supply readings, bypassing Supabase 1,000 row limits automatically.
  */
 export async function getReadings() {
   try {
-    const { data, error } = await supabase
+    const chunkSize = 1000;
+    
+    // Fetch initial chunk and exact total row count
+    const { data, error, count } = await supabase
       .from('readings')
-      .select('*')
-      .order('date', { ascending: false });
+      .select('*', { count: 'exact' })
+      .order('date', { ascending: false })
+      .range(0, chunkSize - 1);
 
     if (error) {
       return { success: false, error: error.message, data: [] as ReadingRecord[] };
     }
 
-    return { success: true, data: (data || []) as ReadingRecord[] };
+    let allRecords: ReadingRecord[] = (data || []) as ReadingRecord[];
+
+    // If total rows in database exceed 1,000 limit, fetch remaining chunks in parallel
+    if (count && count > allRecords.length) {
+      const promises = [];
+      for (let offset = chunkSize; offset < count; offset += chunkSize) {
+        promises.push(
+          supabase
+            .from('readings')
+            .select('*')
+            .order('date', { ascending: false })
+            .range(offset, offset + chunkSize - 1)
+        );
+      }
+
+      const results = await Promise.all(promises);
+      for (const res of results) {
+        if (res.data) {
+          allRecords = allRecords.concat(res.data as ReadingRecord[]);
+        }
+      }
+    }
+
+    return { success: true, data: allRecords };
   } catch (err: any) {
     return { 
       success: false, 
