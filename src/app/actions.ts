@@ -13,6 +13,7 @@ export interface SaveDailyReadingsInput {
   date: string;
   tx1?: CategoryVoltages;
   tx2?: CategoryVoltages;
+  allowOverwrite?: boolean;
 }
 
 export interface ReadingInput {
@@ -51,6 +52,21 @@ export async function saveDailyReadings(data: SaveDailyReadingsInput) {
 
     if (!data.tx1 && !data.tx2) {
       return { success: false, error: 'Please fill in voltage values for at least TX1 or TX2.' };
+    }
+
+    // Check for duplicate date entries if allowOverwrite is not true
+    if (!data.allowOverwrite) {
+      const { data: existing } = await supabase
+        .from('readings')
+        .select('id')
+        .eq('date', formattedDate);
+
+      if (existing && existing.length > 0) {
+        return {
+          success: false,
+          error: `Data for date ${formattedDate.replace(/-/g, '/')} already exists. Duplicate date entries are not allowed. You can edit existing logs from Telemetry History.`,
+        };
+      }
     }
 
     const recordsToUpsert: Array<{

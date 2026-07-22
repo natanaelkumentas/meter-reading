@@ -196,6 +196,7 @@ export default function DisplayPage() {
         date: editingRow.date,
         tx1: tx1Data,
         tx2: tx2Data,
+        allowOverwrite: true,
       });
 
       if (res.success) {
