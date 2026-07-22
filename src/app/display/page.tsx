@@ -31,6 +31,10 @@ export default function DisplayPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all'); // all, TX1, TX2
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
+  // Pagination States (Default: 10 entries per page)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number | 'all'>(10);
+
   // EDIT MODAL STATE
   const [editingRow, setEditingRow] = useState<GroupedDailyReading | null>(null);
   const [editTx1_v5, setEditTx1_v5] = useState('');
@@ -120,6 +124,24 @@ export default function DisplayPage() {
 
     return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
   }, [readings, selectedYear, selectedDate, selectedCategory]);
+
+  // Reset page to 1 when filters or page size change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedYear, selectedDate, selectedCategory, pageSize]);
+
+  // Pagination Math
+  const totalEntries = groupedReadings.length;
+  const numericPageSize = pageSize === 'all' ? totalEntries : pageSize;
+  const totalPages = Math.max(1, Math.ceil(totalEntries / (numericPageSize || 1)));
+
+  const startIndex = (currentPage - 1) * (numericPageSize || 1);
+  const endIndex = Math.min(startIndex + (numericPageSize || totalEntries), totalEntries);
+
+  const paginatedReadings = useMemo(() => {
+    if (pageSize === 'all') return groupedReadings;
+    return groupedReadings.slice(startIndex, endIndex);
+  }, [groupedReadings, pageSize, startIndex, endIndex]);
 
   // Open Edit Modal for a row
   const handleOpenEdit = (row: GroupedDailyReading) => {
@@ -397,7 +419,7 @@ export default function DisplayPage() {
                 </tr>
               </thead>
               <tbody>
-                {groupedReadings.map((row) => {
+                {paginatedReadings.map((row) => {
                   let isAlert = false;
 
                   const checkDev = (rec?: ReadingRecord) => {
@@ -479,6 +501,76 @@ export default function DisplayPage() {
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* PAGINATION CONTROLS BAR */}
+          <div className="pagination-container">
+            <div className="pagination-info">
+              <span>Rows per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setPageSize(val === 'all' ? 'all' : parseInt(val, 10));
+                }}
+                className="input-control"
+                style={{ width: 'auto', display: 'inline-block', padding: '0.35rem 0.6rem', fontSize: '0.85rem' }}
+              >
+                <option value={5}>5</option>
+                <option value={10}>10 (Default)</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value="all">All</option>
+              </select>
+              <span>
+                Showing {totalEntries === 0 ? 0 : startIndex + 1}–{endIndex} of {totalEntries} entries
+              </span>
+            </div>
+
+            <div className="pagination-controls">
+              <button
+                type="button"
+                className="page-btn"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                title="First Page"
+              >
+                « First
+              </button>
+              <button
+                type="button"
+                className="page-btn"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                title="Previous Page"
+              >
+                ‹ Prev
+              </button>
+
+              <span className="page-indicator">
+                Page {currentPage} of {totalPages}
+              </span>
+
+              <button
+                type="button"
+                className="page-btn"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages || totalEntries === 0}
+                title="Next Page"
+              >
+                Next ›
+              </button>
+              <button
+                type="button"
+                className="page-btn"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages || totalEntries === 0}
+                title="Last Page"
+              >
+                Last »
+              </button>
+            </div>
           </div>
         </div>
       )}
