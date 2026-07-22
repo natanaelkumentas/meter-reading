@@ -153,7 +153,7 @@ export default function DisplayPage() {
           Telemetry Logs & History
         </h1>
         <p className="section-desc" style={{ margin: '0.5rem auto 0 auto' }}>
-          Daily power supply readings organized by date with side-by-side TX1 and TX2 category columns.
+          Daily power supply readings organized by date with side-by-side TX1 and TX2 columns.
         </p>
       </div>
 
@@ -166,7 +166,7 @@ export default function DisplayPage() {
           {/* Year Filter */}
           <div className="form-group">
             <label htmlFor="filter-year" className="form-label" style={{ fontSize: '0.75rem' }}>
-              Category per Year
+              Year
             </label>
             <select
               id="filter-year"
@@ -209,10 +209,10 @@ export default function DisplayPage() {
             </div>
           </div>
 
-          {/* Category Filter */}
+          {/* Filter Selection */}
           <div className="form-group">
             <label htmlFor="filter-category" className="form-label" style={{ fontSize: '0.75rem' }}>
-              Category
+              Selection
             </label>
             <select
               id="filter-category"

@@ -274,7 +274,7 @@ export default function InputForm() {
             <div style={{ background: 'rgba(99, 102, 241, 0.05)', border: `1px solid ${enableTx1 ? 'rgba(99, 102, 241, 0.3)' : 'var(--border-color)'}`, borderRadius: '16px', padding: '1.5rem', opacity: enableTx1 ? 1 : 0.6, transition: 'var(--transition-smooth)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                 <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  📡 TX1 Category
+                  📡 TX1
                 </h3>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                   <input
@@ -353,7 +353,7 @@ export default function InputForm() {
             <div style={{ background: 'rgba(6, 182, 212, 0.05)', border: `1px solid ${enableTx2 ? 'rgba(6, 182, 212, 0.3)' : 'var(--border-color)'}`, borderRadius: '16px', padding: '1.5rem', opacity: enableTx2 ? 1 : 0.6, transition: 'var(--transition-smooth)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                 <h3 style={{ fontSize: '1.1rem', color: 'var(--text-primary)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  📡 TX2 Category
+                  📡 TX2
                 </h3>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                   <input
