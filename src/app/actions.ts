@@ -133,13 +133,21 @@ export async function addReading(data: ReadingInput) {
  */
 export async function deleteDailyReading(date: string, category?: 'TX1' | 'TX2') {
   try {
-    let query = supabase.from('readings').delete().eq('date', date);
+    const formattedDate = date.replace(/\//g, '-');
+    let query = supabase.from('readings').delete().eq('date', formattedDate);
     if (category) {
       query = query.eq('category', category);
     }
-    const { error } = await query;
+    const { data, error } = await query.select();
     if (error) {
       return { success: false, error: error.message };
+    }
+
+    if (!data || data.length === 0) {
+      return {
+        success: false,
+        error: 'Deletion affected 0 rows. Please verify DELETE permissions/RLS policies in Supabase.'
+      };
     }
 
     revalidatePath('/');

@@ -189,12 +189,14 @@ export default function DisplayPage() {
   // Confirm Delete (DELETE)
   const handleConfirmDelete = async () => {
     if (!deletingDate) return;
+    const dateToDelete = deletingDate;
+    setDeletingDate(null);
 
     startTransition(async () => {
-      const res = await deleteDailyReading(deletingDate);
+      const res = await deleteDailyReading(dateToDelete);
       if (res.success) {
-        setToast({ type: 'success', message: `Telemetry for ${formatDateToSlash(deletingDate)} deleted.` });
-        setDeletingDate(null);
+        setReadings((prev) => prev.filter((r) => r.date !== dateToDelete));
+        setToast({ type: 'success', message: `Telemetry for ${formatDateToSlash(dateToDelete)} deleted.` });
         await loadData();
       } else {
         setToast({ type: 'error', message: res.error || 'Failed to delete record.' });
