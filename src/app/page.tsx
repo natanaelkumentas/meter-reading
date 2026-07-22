@@ -189,7 +189,7 @@ export default function InputForm() {
             {/* Category Selector (TX1 vs TX2) */}
             <div className="form-group full-width">
               <label className="form-label">
-                Select Category / Transmitter
+                Category
               </label>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button
@@ -206,7 +206,7 @@ export default function InputForm() {
                   }}
                   disabled={isPending}
                 >
-                  📡 TX1 Category
+                  TX1
                 </button>
                 <button
                   type="button"
@@ -222,7 +222,7 @@ export default function InputForm() {
                   }}
                   disabled={isPending}
                 >
-                  📡 TX2 Category
+                  TX2
                 </button>
               </div>
             </div>

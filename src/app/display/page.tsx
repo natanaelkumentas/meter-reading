@@ -209,10 +209,10 @@ export default function DisplayPage() {
             </div>
           </div>
 
-          {/* Transmitter / Category Filter */}
+          {/* Category Filter */}
           <div className="form-group">
             <label htmlFor="filter-category" className="form-label" style={{ fontSize: '0.75rem' }}>
-              Transmitter Category
+              Category
             </label>
             <select
               id="filter-category"
@@ -220,9 +220,9 @@ export default function DisplayPage() {
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
             >
-              <option value="all">Display Both TX1 & TX2</option>
-              <option value="TX1">TX1 Category Only</option>
-              <option value="TX2">TX2 Category Only</option>
+              <option value="all">Display Both (TX1 & TX2)</option>
+              <option value="TX1">TX1 Only</option>
+              <option value="TX2">TX2 Only</option>
             </select>
           </div>
         </div>
@@ -274,13 +274,13 @@ export default function DisplayPage() {
 
                   {(selectedCategory === 'all' || selectedCategory === 'TX1') && (
                     <th style={{ textAlign: 'center', background: 'rgba(99, 102, 241, 0.08)', borderLeft: '1px solid var(--border-color)', borderRight: '1px solid var(--border-color)' }}>
-                      📡 TX1 CATEGORY SUPPLY DATA
+                      TX1
                     </th>
                   )}
 
                   {(selectedCategory === 'all' || selectedCategory === 'TX2') && (
                     <th style={{ textAlign: 'center', background: 'rgba(6, 182, 212, 0.08)', borderRight: '1px solid var(--border-color)' }}>
-                      📡 TX2 CATEGORY SUPPLY DATA
+                      TX2
                     </th>
                   )}
 
