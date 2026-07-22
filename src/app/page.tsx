@@ -268,7 +268,7 @@ export default function InputForm() {
           </div>
 
           {/* Grid Layout for TX1 & TX2 Inputs */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
             
             {/* TX1 SECTION CARD */}
             <div style={{ background: 'rgba(99, 102, 241, 0.05)', border: `1px solid ${enableTx1 ? 'rgba(99, 102, 241, 0.3)' : 'var(--border-color)'}`, borderRadius: '16px', padding: '1.5rem', opacity: enableTx1 ? 1 : 0.6, transition: 'var(--transition-smooth)' }}>
