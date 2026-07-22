@@ -181,30 +181,112 @@ export default function InputForm() {
     });
   };
 
-  // Keyboard Navigation & Shift Modifier Handler
+  // Keyboard Shortcuts: Navigation (Alt + Arrow) & Increments (Arrow: 0.01, Shift: 0.1, Ctrl: 1)
   const handleFormKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
-    // 1. Shift + ArrowUp / ArrowDown: Increment / Decrement value by 1 (or 1 day for date)
-    if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-      const activeElement = document.activeElement as HTMLInputElement | null;
-      if (!activeElement || !activeElement.id) return;
+    const key = e.key;
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) return;
 
-      const id = activeElement.id;
-      const delta = e.key === 'ArrowUp' ? 1 : -1;
+    const activeElement = document.activeElement as HTMLInputElement | null;
+    if (!activeElement || !activeElement.id) return;
+    const currentId = activeElement.id;
 
-      // Handle Date Field (+1 day / -1 day)
-      if (id === 'date') {
+    // 1. ALT + ARROW KEYS: Field Navigation Across 2D Grid
+    if (e.altKey) {
+      e.preventDefault();
+
+      const grid: string[][] = [
+        ['date', 'date'],
+        ['tx1_v5', 'tx2_v5'],
+        ['tx1_v15', 'tx2_v15'],
+        ['tx1_vNeg15', 'tx2_vNeg15'],
+      ];
+
+      let currRow = -1;
+      let currCol = -1;
+
+      for (let r = 0; r < grid.length; r++) {
+        for (let c = 0; c < grid[r].length; c++) {
+          if (grid[r][c] === currentId) {
+            currRow = r;
+            currCol = c;
+            break;
+          }
+        }
+        if (currRow !== -1) break;
+      }
+
+      if (currRow === -1) return;
+
+      let targetRow = currRow;
+      let targetCol = currCol;
+
+      if (key === 'ArrowDown') {
+        targetRow = Math.min(grid.length - 1, currRow + 1);
+      } else if (key === 'ArrowUp') {
+        targetRow = Math.max(0, currRow - 1);
+      } else if (key === 'ArrowRight') {
+        if (currRow === 0) {
+          targetRow = 1;
+          targetCol = 0;
+        } else {
+          targetCol = Math.min(1, currCol + 1);
+        }
+      } else if (key === 'ArrowLeft') {
+        if (currRow === 0) {
+          targetRow = 0;
+          targetCol = 0;
+        } else {
+          targetCol = Math.max(0, currCol - 1);
+        }
+      }
+
+      const targetId = grid[targetRow][targetCol];
+      let targetElement = document.getElementById(targetId) as HTMLInputElement | null;
+
+      if (!targetElement || targetElement.disabled) {
+        const altCol = targetCol === 0 ? 1 : 0;
+        const altElement = document.getElementById(grid[targetRow][altCol]) as HTMLInputElement | null;
+        if (altElement && !altElement.disabled) {
+          targetElement = altElement;
+        }
+      }
+
+      if (targetElement && !targetElement.disabled) {
+        targetElement.focus();
+        targetElement.select();
+      }
+      return;
+    }
+
+    // 2. ARROW UP / ARROW DOWN: Value Increments / Decrements
+    if (key === 'ArrowUp' || key === 'ArrowDown') {
+      const isUp = key === 'ArrowUp';
+      const direction = isUp ? 1 : -1;
+
+      // Determine step size:
+      // Arrow = 0.01 | Shift + Arrow = 0.1 | Ctrl + Arrow = 1
+      let step = 0.01;
+      if (e.ctrlKey) {
+        step = 1;
+      } else if (e.shiftKey) {
+        step = 0.1;
+      }
+
+      // Handle Date Field
+      if (currentId === 'date') {
         e.preventDefault();
         let currentDate = new Date();
         if (isValidDate(dateStr)) {
           const parts = dateStr.split('/');
           currentDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
         }
-        currentDate.setDate(currentDate.getDate() + delta);
+        const dayChange = e.ctrlKey ? direction * 30 : direction;
+        currentDate.setDate(currentDate.getDate() + dayChange);
         setDateStr(formatDateToSlash(currentDate));
         return;
       }
 
-      // Handle Number Voltage Fields (+1 / -1)
+      // Handle Number Voltage Fields
       const setters: Record<string, [string, React.Dispatch<React.SetStateAction<string>>]> = {
         tx1_v5: [tx1_v5, setTx1_v5],
         tx1_v15: [tx1_v15, setTx1_v15],
@@ -214,91 +296,14 @@ export default function InputForm() {
         tx2_vNeg15: [tx2_vNeg15, setTx2_vNeg15],
       };
 
-      if (id in setters) {
+      if (currentId in setters) {
         e.preventDefault();
-        const [currentVal, setter] = setters[id];
+        const [currentVal, setter] = setters[currentId];
         const num = parseFloat(currentVal);
         const baseVal = !isNaN(num) ? num : 0;
-        const newVal = baseVal + delta;
-        const decimals = currentVal.includes('.') ? currentVal.split('.')[1].length : 2;
-        setter(newVal.toFixed(Math.max(2, decimals)));
-        return;
+        const newVal = baseVal + (direction * step);
+        setter(newVal.toFixed(2));
       }
-    }
-
-    // 2. Ctrl + Arrow Keys: Navigate between fields
-    if (!e.ctrlKey) return;
-    const key = e.key;
-    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) return;
-
-    const activeElement = document.activeElement as HTMLInputElement | null;
-    if (!activeElement || !activeElement.id) return;
-
-    const currentId = activeElement.id;
-
-    // 2D Grid map of input field IDs: [row][col]
-    const grid: string[][] = [
-      ['date', 'date'],
-      ['tx1_v5', 'tx2_v5'],
-      ['tx1_v15', 'tx2_v15'],
-      ['tx1_vNeg15', 'tx2_vNeg15'],
-    ];
-
-    let currRow = -1;
-    let currCol = -1;
-
-    for (let r = 0; r < grid.length; r++) {
-      for (let c = 0; c < grid[r].length; c++) {
-        if (grid[r][c] === currentId) {
-          currRow = r;
-          currCol = c;
-          break;
-        }
-      }
-      if (currRow !== -1) break;
-    }
-
-    if (currRow === -1) return;
-
-    let targetRow = currRow;
-    let targetCol = currCol;
-
-    if (key === 'ArrowDown') {
-      targetRow = Math.min(grid.length - 1, currRow + 1);
-    } else if (key === 'ArrowUp') {
-      targetRow = Math.max(0, currRow - 1);
-    } else if (key === 'ArrowRight') {
-      if (currRow === 0) {
-        targetRow = 1;
-        targetCol = 0;
-      } else {
-        targetCol = Math.min(1, currCol + 1);
-      }
-    } else if (key === 'ArrowLeft') {
-      if (currRow === 0) {
-        targetRow = 0;
-        targetCol = 0;
-      } else {
-        targetCol = Math.max(0, currCol - 1);
-      }
-    }
-
-    const targetId = grid[targetRow][targetCol];
-    let targetElement = document.getElementById(targetId) as HTMLInputElement | null;
-
-    // Fallback if target element is disabled or null
-    if (!targetElement || targetElement.disabled) {
-      const altCol = targetCol === 0 ? 1 : 0;
-      const altElement = document.getElementById(grid[targetRow][altCol]) as HTMLInputElement | null;
-      if (altElement && !altElement.disabled) {
-        targetElement = altElement;
-      }
-    }
-
-    if (targetElement && !targetElement.disabled) {
-      e.preventDefault();
-      targetElement.focus();
-      targetElement.select();
     }
   };
 
@@ -314,12 +319,12 @@ export default function InputForm() {
       </div>
 
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
           <div className="form-title" style={{ marginBottom: 0 }}>
             <span>📝</span> New Telemetry Entry
           </div>
           <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '0.35rem 0.7rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-            💡 Ctrl + ↑/↓/←/→: navigate | Shift + ↑/↓: +/- 1
+            💡 Alt+Arrows: navigate | ↑/↓: ±0.01 | Shift+↑/↓: ±0.1 | Ctrl+↑/↓: ±1
           </span>
         </div>
 
