@@ -181,6 +181,83 @@ export default function InputForm() {
     });
   };
 
+  // Ctrl + Arrow Direction Key Navigation Handler
+  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
+    if (!e.ctrlKey) return;
+    const key = e.key;
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) return;
+
+    const activeElement = document.activeElement as HTMLInputElement | null;
+    if (!activeElement || !activeElement.id) return;
+
+    const currentId = activeElement.id;
+
+    // 2D Grid map of input field IDs: [row][col]
+    const grid: string[][] = [
+      ['date', 'date'],
+      ['tx1_v5', 'tx2_v5'],
+      ['tx1_v15', 'tx2_v15'],
+      ['tx1_vNeg15', 'tx2_vNeg15'],
+    ];
+
+    let currRow = -1;
+    let currCol = -1;
+
+    for (let r = 0; r < grid.length; r++) {
+      for (let c = 0; c < grid[r].length; c++) {
+        if (grid[r][c] === currentId) {
+          currRow = r;
+          currCol = c;
+          break;
+        }
+      }
+      if (currRow !== -1) break;
+    }
+
+    if (currRow === -1) return;
+
+    let targetRow = currRow;
+    let targetCol = currCol;
+
+    if (key === 'ArrowDown') {
+      targetRow = Math.min(grid.length - 1, currRow + 1);
+    } else if (key === 'ArrowUp') {
+      targetRow = Math.max(0, currRow - 1);
+    } else if (key === 'ArrowRight') {
+      if (currRow === 0) {
+        targetRow = 1;
+        targetCol = 0;
+      } else {
+        targetCol = Math.min(1, currCol + 1);
+      }
+    } else if (key === 'ArrowLeft') {
+      if (currRow === 0) {
+        targetRow = 0;
+        targetCol = 0;
+      } else {
+        targetCol = Math.max(0, currCol - 1);
+      }
+    }
+
+    const targetId = grid[targetRow][targetCol];
+    let targetElement = document.getElementById(targetId) as HTMLInputElement | null;
+
+    // Fallback if target element is disabled or null
+    if (!targetElement || targetElement.disabled) {
+      const altCol = targetCol === 0 ? 1 : 0;
+      const altElement = document.getElementById(grid[targetRow][altCol]) as HTMLInputElement | null;
+      if (altElement && !altElement.disabled) {
+        targetElement = altElement;
+      }
+    }
+
+    if (targetElement && !targetElement.disabled) {
+      e.preventDefault();
+      targetElement.focus();
+      targetElement.select();
+    }
+  };
+
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto', width: '100%' }}>
       <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
@@ -193,11 +270,16 @@ export default function InputForm() {
       </div>
 
       <div className="card">
-        <div className="form-title">
-          <span>📝</span> New Telemetry Entry
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+          <div className="form-title" style={{ marginBottom: 0 }}>
+            <span>📝</span> New Telemetry Entry
+          </div>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '0.3rem 0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+            💡 Ctrl + ↑ / ↓ / ← / → to navigate fields
+          </span>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown}>
           {/* Date Picker Section */}
           <div className="form-group full-width" style={{ marginBottom: '2rem' }}>
             <label htmlFor="date" className="form-label">
