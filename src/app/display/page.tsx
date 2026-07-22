@@ -451,7 +451,7 @@ export default function DisplayPage() {
 
                       {/* CRUD Actions Column (Edit / Delete) */}
                       <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
-                        <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                        <div className="table-action-group">
                           <button
                             type="button"
                             className="btn"
@@ -505,7 +505,7 @@ export default function DisplayPage() {
                   </label>
                 </div>
                 {hasTx1 && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                  <div className="edit-grid-3">
                     <div>
                       <label className="form-label" style={{ fontSize: '0.7rem' }}>+5V</label>
                       <input type="number" step="0.01" className="input-control" value={editTx1_v5} onChange={(e) => setEditTx1_v5(e.target.value)} />
@@ -531,7 +531,7 @@ export default function DisplayPage() {
                   </label>
                 </div>
                 {hasTx2 && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                  <div className="edit-grid-3">
                     <div>
                       <label className="form-label" style={{ fontSize: '0.7rem' }}>+5V</label>
                       <input type="number" step="0.01" className="input-control" value={editTx2_v5} onChange={(e) => setEditTx2_v5(e.target.value)} />

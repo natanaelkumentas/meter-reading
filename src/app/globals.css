@@ -775,10 +775,55 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 
   .custom-table th,
   .custom-table td {
-    padding: 0.75rem 0.6rem;
-    font-size: 0.82rem;
+    padding: 0.75rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  /* Responsive Action Button Group */
+  .table-action-group {
+    flex-direction: column !important;
+    gap: 0.35rem !important;
+  }
+
+  .table-action-group .btn {
+    width: 100% !important;
+    padding: 0.35rem 0.5rem !important;
+    font-size: 0.75rem !important;
+  }
+
+  /* Responsive Toast on mobile */
+  .toast-container {
+    bottom: 1rem !important;
+    right: 0.75rem !important;
+    left: 0.75rem !important;
+    width: auto !important;
+    max-width: none !important;
+    padding: 0.85rem 1rem !important;
+  }
+
+  .toast-message {
+    font-size: 0.85rem !important;
+  }
+
+  /* Responsive 3-column Edit Grid in modals */
+  .edit-grid-3 {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
   }
 }
+
+.table-action-group {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: center;
+}
+
+.edit-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
 
 /* Toast Floating Notification Styling */
 .toast-container {
